@@ -115,7 +115,7 @@ int16_t main(void) {
             }
             else
             {
-                pin_clear(&D[6]);
+                oc_pwm(&oc1, &D[6], &timer2, 20000, 30000);
             }
         }
     }
