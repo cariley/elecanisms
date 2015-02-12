@@ -19,12 +19,10 @@ list = Builder(action = 'xc16-objdump -S -D $SOURCE > $TARGET',
 env.Append(BUILDERS = {'List' : list})
 
 env.Program('motorcontrol', ['motorcontrol.c',
-                      'descriptors.c',
                       '../lib/timer.c',
                       '../lib/ui.c',
                       '../lib/pin.c',
                       '../lib/oc.c',
-                      '../lib/uart.c',
-                      '../lib/usb.c'])
+                      '../lib/uart.c'])
 env.Hex('motorcontrol')
 env.List('motorcontrol')
