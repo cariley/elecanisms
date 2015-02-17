@@ -18,11 +18,11 @@ list = Builder(action = 'xc16-objdump -S -D $SOURCE > $TARGET',
                src_suffix = 'elf')
 env.Append(BUILDERS = {'List' : list})
 
-env.Program('motorcontrol', ['motorcontrol.c',
+env.Program('angleRead', ['angleRead.c',
                       '../lib/timer.c',
                       '../lib/ui.c',
                       '../lib/pin.c',
                       '../lib/oc.c',
                       '../lib/uart.c'])
-env.Hex('motorcontrol')
-env.List('motorcontrol')
+env.Hex('angleRead')
+env.List('angleRead')

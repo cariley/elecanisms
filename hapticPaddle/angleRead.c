@@ -19,8 +19,7 @@ int16_t rawDiff;
 int16_t lastRawDiff;
 int16_t rawOffset;
 int16_t lastRawOffset;
-uint16_t readTime;
-uint16_t flipThresh = 700;  // threshold to determine whether or not a flip over the 180 degree mark occurred
+uint16_t flipThresh = 500;  // threshold to determine whether or not a flip over the 180 degree mark occurred
 bool flipped = false;
 
 void countFlips(_TIMER *self) {
@@ -44,14 +43,13 @@ void countFlips(_TIMER *self) {
     } else {                       
         flipped = false;
     }
+}
+
+void printVals(_TIMER *self) {
     printf("%d:%d\n",rawPos,flipNumber);
 }
 
 int16_t main(void) {
-    uint16_t btn2ReadState;
-    uint16_t btn2CurrState = 0;
-    uint16_t counter2;
-
     init_clock();
     init_timer();
     init_ui();
@@ -82,7 +80,9 @@ int16_t main(void) {
     lastLastRawPos = pin_read(&A[5]) >> 6;
     lastRawPos = pin_read(&A[5]) >> 6;
 
-    timer_every(&timer3,.5,countFlips);
+    timer_every(&timer2,.0005,countFlips);
+
+    timer_every(&timer1,.5,printVals);
 
     while(1) {
     }
