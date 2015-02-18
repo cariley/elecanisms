@@ -41,7 +41,7 @@ void countFlips(_TIMER *self) {
         flipped = false;
     }
 
-    cumulativeVal = rawPos + flipNumber*700    //each flip changes cumulative value by 700
+    cumulativeVal = rawPos + flipNumber*700;    //each flip changes cumulative value by 700
 }
 
 void printVals(_TIMER *self) {
