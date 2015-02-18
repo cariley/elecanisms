@@ -14,26 +14,22 @@ int16_t rawPos;         // current raw reading from MR sensor
 int16_t lastRawPos;     // last raw reading from MR sensor
 int16_t lastLastRawPos; // last last raw reading from MR sensor
 int16_t flipNumber;     // keeps track of the number of flips over the 180deg mark
-int16_t tempOffset;
-int16_t rawDiff;
 int16_t lastRawDiff;
-int16_t rawOffset;
 int16_t lastRawOffset;
-int16_t cumulativeVal;
+int16_t cumulativeVal;      // cumulative sensor value
 uint16_t flipThresh = 600;  // threshold to determine whether or not a flip over the 180 degree mark occurred
 bool flipped = false;
 
 void countFlips(_TIMER *self) {
     rawPos = pin_read(&A[5]) >> 6;
-
-    rawDiff = rawPos - lastRawPos;          
+     
     lastRawDiff = rawPos - lastLastRawPos; 
-    rawOffset = abs(rawDiff);
     lastRawOffset = abs(lastRawDiff);
     
     lastLastRawPos = lastRawPos;
     lastRawPos = rawPos;
-      
+    
+    //check for flip and increment or decrement accordingly
     if((lastRawOffset > flipThresh) && (!flipped)) { 
         if(lastRawDiff > 0) {        
             flipNumber--;             
@@ -44,10 +40,12 @@ void countFlips(_TIMER *self) {
     } else {                       
         flipped = false;
     }
+
+    cumulativeVal = rawPos + flipNumber*700    //each flip changes cumulative value by 700
 }
 
 void printVals(_TIMER *self) {
-    printf("%d:%d\n",rawPos,flipNumber);
+    printf("%d\n",cumulativeVal);
 }
 
 int16_t main(void) {
@@ -75,16 +73,14 @@ int16_t main(void) {
     pin_digitalOut(&D[7]);
     pin_set(&D[7]);
 
-    //pin_digitalOut(&D[6]);
-    //oc_pwm(&oc1, &D[6], &timer2, 20000, 60000);
-
     lastLastRawPos = pin_read(&A[5]) >> 6;
     lastRawPos = pin_read(&A[5]) >> 6;
 
-    timer_every(&timer2,.0005,countFlips);
+    timer_every(&timer2,.0005,countFlips); //keep track of position
 
-    timer_every(&timer1,.5,printVals);
+    timer_every(&timer1,.5,printVals);     //report position
 
     while(1) {
+
     }
 }
