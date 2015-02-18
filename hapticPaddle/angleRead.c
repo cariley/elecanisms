@@ -19,7 +19,8 @@ int16_t rawDiff;
 int16_t lastRawDiff;
 int16_t rawOffset;
 int16_t lastRawOffset;
-uint16_t flipThresh = 500;  // threshold to determine whether or not a flip over the 180 degree mark occurred
+int16_t cumulativeVal;
+uint16_t flipThresh = 600;  // threshold to determine whether or not a flip over the 180 degree mark occurred
 bool flipped = false;
 
 void countFlips(_TIMER *self) {
