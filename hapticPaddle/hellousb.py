@@ -9,11 +9,7 @@ ser = serial.Serial(
     bytesize=serial.EIGHTBITS,\
         timeout=0)
 
-#f = open("values.txt","w+")
 while True:
     line = ser.readline()
-    if ":" in line:
+    if "\n" in line:
         print line
-        #f.write(line)
-        #f.flush();
-        #os.fsync(f.fileno())
