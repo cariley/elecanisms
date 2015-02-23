@@ -17,7 +17,10 @@ int16_t flipNumber;     // keeps track of the number of flips over the 180deg ma
 int16_t lastRawDiff;
 int16_t lastRawOffset;
 int16_t cumulativeVal;      // cumulative sensor value
-int16_t force;
+int16_t current_position; // cumulative sensor value - initial position
+int16_t force_desired; // how much force do we want applied to the joystick, given the current control law
+// (arbitrary units)
+int16_t force_current; // how much force are we currently applying (motor current reading)
 int16_t initPos;
 uint16_t flipThresh = 600;  // threshold to determine whether or not a flip over the 180 degree mark occurred
 bool flipped = false;
@@ -44,21 +47,20 @@ void updateMotorPWM(_TIMER *self) {
     }
 
     cumulativeVal = rawPos + flipNumber*700;    //each flip changes cumulative value by 700
+    current_position = cumulativeVal-initPos;
 
-    force = -(cumulativeVal-initPos) >> 6;
+    force_desired = -(current_position-800) >> 6; // arbitrary units. will fix later
 
-    if (force < 0) {
+    if (force_desired < 0) {
         oc_pwm(&oc2, &D[5], &timer4, 0, 0);
-        oc_pwm(&oc1, &D[6], &timer2, 20000, abs(force) * 5000);
+        oc_pwm(&oc1, &D[6], &timer2, 20000, abs(force_desired) * 5000);
     } else {
         oc_pwm(&oc1, &D[6], &timer2, 0, 0);
-        oc_pwm(&oc2, &D[5], &timer4, 20000, abs(force) * 5000);
+        oc_pwm(&oc2, &D[5], &timer4, 20000, abs(force_desired) * 5000);
     }
 }
 
-void printForce(_TIMER *self) {
-    printf("%d\n",force);
-}
+
 
 int16_t main(void) {
     init_clock();
@@ -68,7 +70,39 @@ int16_t main(void) {
     init_oc();
     init_uart();
 
-    pin_analogIn(&A[5]);
+    Config_Motor_Pins();
+
+    // initialize the location of the joystick- joystick should be manually 
+    // positioned in the 'zero' position when reseting (or powering on).
+    lastLastRawPos = pin_read(&A[5]) >> 6;
+    lastRawPos = pin_read(&A[5]) >> 6;
+    initPos = lastLastRawPos;
+
+    timer_every(&timer3,.0005,updateMotorPWM); //keep track of position
+
+    timer_every(&timer1,.5,printData); //report position
+
+    while(1) { 
+        // avoid reboot
+    }
+}
+
+
+
+// this function prints all required data. Currently prints through
+// serial port, but we want it to eventually print through USB Vendor 
+// specific requests.
+void printData(_TIMER *self) {
+    printf("%d\n",force_desired);
+}
+
+
+// the motorsheild needs a handful of digital pins set to specific values
+// to operate in the mode we want it to, plus A5 must be configured as an
+// input.
+void Config_Motor_Pins() {
+    pin_analogIn(&A[5]); // magnetoresistive sensor
+    pin_analogIn(&A[0]); // current sensing resistor (amplified)
 
     pin_digitalOut(&D[2]);
     pin_set(&D[2]);
@@ -87,16 +121,4 @@ int16_t main(void) {
 
     pin_digitalOut(&D[6]);
     pin_clear(&D[6]);
-
-    lastLastRawPos = pin_read(&A[5]) >> 6;
-    lastRawPos = pin_read(&A[5]) >> 6;
-    initPos = lastLastRawPos;
-
-    timer_every(&timer3,.0005,updateMotorPWM); //keep track of position
-
-    timer_every(&timer1,.5,printForce);     //report position
-
-    while(1) {
-
-    }
 }
