@@ -57,9 +57,14 @@ Installation Under Windows
    libusb-1.0.dll file to C:\Windows, which is by default a hidden directory 
    and requires Administrator privilages to do.  This will install the 
    libusb-1.0 backend so that pyusb can find it.
+
 UPDATE: (added by Kyle) This didn't work for me. If you get an error 'no backend 
-available' when you try to run the python gui, then search online for a .exe file
-that will install libusb for you. (or see the one included in the git repo).
+available' when you try to run the python gui, then search online for libusb-win32
+(or see the one included in the git repo). Note that you need one of the more recent
+ones for a 64 bit system (I used 1.2.6). To install libusb-win32, go into the bin
+folder of the libusb-win32, then x86, and copy the .dll to c://Windows/syswow64. Rename it
+to libusb0.dll. Then copy libusb0.sys to Windows/system32/drivers/libusb0.sys
+you can see these instructions in the bin readme.
 
 5. When you plug the Elecanisms board into a USB port on your computer for the 
    first time with SW1 depressed, which runs the bootloader, Windows will try 
@@ -73,6 +78,11 @@ that will install libusb for you. (or see the one included in the git repo).
    will appear warning you that the driver has not been signed and asking 
    whether you want to proceed with the installation anyway.  Go ahead with 
    the installation.
+
+UPDATE: (added by Kyle) This didn't work for me. To solve this, after you have
+installed the driver, run the inf-wizard.exe in the bin folder of the libusb.
+follow the instructions to create an inf file for your device. it should immediately
+ask you to install the inf file. do so. now things work!
 
 6. To run the bootloader host software, which is located in the "software" 
    subdirectory, you can either type "python bootloadergui.py" at the command 
