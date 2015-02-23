@@ -76,13 +76,14 @@ int16_t main(void) {
     pin_digitalOut(&D[7]);
     pin_set(&D[7]);
 
-    //pin_digitalOut(&D[6]);
+    pin_digitalOut(&D[6]);
+    pin_set(&D[6]);
     //oc_pwm(&oc1, &D[6], &timer2, 20000, 60000);
 
     lastLastRawPos = pin_read(&A[5]) >> 6;
     lastRawPos = pin_read(&A[5]) >> 6;
 
-    timer_every(&timer3,.5,countFlips);
+    //timer_every(&timer3,.5,countFlips);
 
     while(1) {
     }

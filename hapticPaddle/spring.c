@@ -57,7 +57,7 @@ void updateMotorPWM(_TIMER *self) {
 }
 
 void printForce(_TIMER *self) {
-    printf("%d\n",force);
+    printf("%d\n",cumulativeVal);
 }
 
 int16_t main(void) {
