@@ -17,9 +17,7 @@
 #define TEXTURE     4
 #define INTTHRESH   700
 #define FLIPTHRESH  600
-#define POSWALL     1200
-#define NEGWALL     -1200
-#define DUTYSCALE   5000
+#define WALL     1200
 
 // Position tracking variables
 int16_t rawPos;         // current raw reading from MR sensor

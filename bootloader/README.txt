@@ -82,7 +82,11 @@ you can see these instructions in the bin readme.
 UPDATE: (added by Kyle) This didn't work for me. To solve this, after you have
 installed the driver, run the inf-wizard.exe in the bin folder of the libusb.
 follow the instructions to create an inf file for your device. it should immediately
-ask you to install the inf file. do so. now things work!
+ask you to install the inf file. do so. now things work! Note that you will need
+to install an inf file for EVERY vendor ID you use (so if you define the usb
+connection with multiple standards, you will need to do this for each.) In Brad's
+elecanisms, this means you need one inf file for the bootloader, and another once
+you start communicating with the usb in your own code.
 
 6. To run the bootloader host software, which is located in the "software" 
    subdirectory, you can either type "python bootloadergui.py" at the command 

@@ -21,6 +21,7 @@ env.Append(BUILDERS = {'List' : list})
 env.Program('hellousb', ['hellousb.c',
                          'descriptors.c', 
                          'usb.c', 
+                         '../lib/ui.c',
                          '../lib/pin.c', 
                          '../lib/uart.c'])
 env.Hex('hellousb')
