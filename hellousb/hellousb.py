@@ -34,7 +34,7 @@ class hellousb:
         except usb.core.USBError:
             print "Could not send GET_VALS vendor request."
         else:
-            return [int(ret[0])+int(ret[1])*256, int(ret[2])+int(ret[3])*256]
+            return [int(ret[0])+int(ret[1])*256]
 
     def print_vals(self):
         try:

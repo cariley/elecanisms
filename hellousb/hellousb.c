@@ -39,10 +39,10 @@ void VendorRequests(void) {
             temp.w = val1;
             BD[EP0IN].address[0] = temp.b[0];
             BD[EP0IN].address[1] = temp.b[1];
-            temp.w = val2;
-            BD[EP0IN].address[2] = temp.b[0];
-            BD[EP0IN].address[3] = temp.b[1];
-            BD[EP0IN].bytecount = 4;    // set EP0 IN byte count to 4
+            //temp.w = val2;
+            //BD[EP0IN].address[2] = temp.b[0];
+            //BD[EP0IN].address[3] = temp.b[1];
+            BD[EP0IN].bytecount = 2;    // set EP0 IN byte count to 4
             BD[EP0IN].status = 0xC8;    // send packet as DATA1, set UOWN bit
             break;            
         case PRINT_VALS:
