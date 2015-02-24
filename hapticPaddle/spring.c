@@ -24,12 +24,32 @@ int16_t force_current; // how much force are we currently applying (motor curren
 int16_t initPos;
 uint16_t flipThresh = 600;  // threshold to determine whether or not a flip over the 180 degree mark occurred
 bool flipped = false;
+int16_t last_duty; // keeps track of the last duty cycle used for the simple integrator control loop for
+// controlling force.
+// *********************************************** IMPORTANT!! BOARD REDESIGN REQUIRED *******************
+int16_t duty_temp; // so it turns out there's a noisy section when trying to measure current at the wrong
+// drive frequency. later it would be nice to implement a hardware filter. for now, since this region is 
+// unusable (and the PID loop actually gets stuck here), temporarily just avoid this region if you're 
+// control loop wants to enter it.
+uint16_t kI = 100;
+
+// because apparently PIC C doesn't have abs already built into its libraries. Or if id does,
+// I don't know where to look. #include "math.h" didn't do it.
+// note: really cool way to do this with terinery operator: return (x) > 0 ? (x) : -(x)
+int myAbs(int x) {
+    if (x > 0) {
+        return x;
+    }
+    else {
+        return -(x);
+    }
+}
 
 void updateMotorPWM(_TIMER *self) {
     rawPos = pin_read(&A[5]) >> 6;
      
     lastRawDiff = rawPos - lastLastRawPos; 
-    lastRawOffset = abs(lastRawDiff);
+    lastRawOffset = myAbs(lastRawDiff);
     
     lastLastRawPos = lastRawPos;
     lastRawPos = rawPos;
@@ -50,48 +70,46 @@ void updateMotorPWM(_TIMER *self) {
     current_position = cumulativeVal-initPos;
 
     force_desired = -(current_position-800) >> 6; // arbitrary units. will fix later
+    force_desired = force_desired * 5;
 
-    if (force_desired < 0) {
-        oc_pwm(&oc2, &D[5], &timer4, 0, 0);
-        oc_pwm(&oc1, &D[6], &timer2, 20000, abs(force_desired) * 5000);
-    } else {
-        oc_pwm(&oc1, &D[6], &timer2, 0, 0);
-        oc_pwm(&oc2, &D[5], &timer4, 20000, abs(force_desired) * 5000);
+    force_current = pin_read(&A[0]) >> 6; // read the current sense resistor
+
+    if (myAbs(myAbs(force_desired)-force_current)>2) { // significant enough to change the motor speed
+        if (myAbs(force_desired)-force_current < 0) { // want less!!
+            last_duty -= kI;
+        }
+        else {
+            last_duty += kI; // want MORE!!
+        }
+        // deal with extreme cases
+        if (last_duty < 0) {
+            last_duty = 0;
+        }
+        if (last_duty > 65000) {
+            last_duty = 65000;
+        }
+        if ((last_duty > 3500) && (last_duty < 5500)) { // avoid dead spot
+            last_duty = 8000;
+        }
+        if ((last_duty > 5549) && (last_duty < 7900)) {
+            last_duty = 3400;
+        }
+        // now, update motor!
+        if (force_desired > 0) {
+            oc_pwm(&oc2, &D[5], &timer4, 0, 0);
+            oc_pwm(&oc1, &D[6], &timer2, 20000, last_duty);
+        } else {
+            oc_pwm(&oc1, &D[6], &timer2, 0, 0);
+            oc_pwm(&oc2, &D[5], &timer4, 20000, last_duty);
+        }
     }
 }
-
-int16_t main(void) {
-    init_clock();
-    init_timer();
-    init_ui();
-    init_pin();
-    init_oc();
-    init_uart();
-
-    Config_Motor_Pins();
-
-    // initialize the location of the joystick- joystick should be manually 
-    // positioned in the 'zero' position when reseting (or powering on).
-    lastLastRawPos = pin_read(&A[5]) >> 6;
-    lastRawPos = pin_read(&A[5]) >> 6;
-    initPos = lastLastRawPos;
-
-    timer_every(&timer3,.0005,updateMotorPWM); //keep track of position
-
-    timer_every(&timer1,.5,printData); //report position
-
-    while(1) { 
-        // avoid reboot
-    }
-}
-
-
 
 // this function prints all required data. Currently prints through
 // serial port, but we want it to eventually print through USB Vendor 
 // specific requests.
 void printData(_TIMER *self) {
-    printf("%d\n",force_desired);
+    printf("%d:%d:%d\n",force_desired,force_current,last_duty);
 }
 
 
@@ -120,3 +138,33 @@ void Config_Motor_Pins() {
     pin_digitalOut(&D[6]);
     pin_clear(&D[6]);
 }
+
+int16_t main(void) {
+    init_clock();
+    init_timer();
+    init_ui();
+    init_pin();
+    init_oc();
+    init_uart();
+
+    Config_Motor_Pins();
+
+    last_duty = 0;
+
+    // initialize the location of the joystick- joystick should be manually 
+    // positioned in the 'zero' position when reseting (or powering on).
+    lastLastRawPos = pin_read(&A[5]) >> 6;
+    lastRawPos = pin_read(&A[5]) >> 6;
+    initPos = lastLastRawPos;
+
+    timer_every(&timer3,.0005,updateMotorPWM); //keep track of position
+
+    timer_every(&timer1,.5,printData); //report position
+
+    while(1) { 
+        // avoid reboot
+    }
+}
+
+
+
