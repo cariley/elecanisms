@@ -45,6 +45,10 @@ int16_t duty_temp; // so it turns out there's a noisy section when trying to mea
 // control loop wants to enter it.
 uint16_t kI = 100;
 
+
+int16_t command; // which state is the FSM in?
+int16_t argument; // for states that also require a setting, what is that setting?
+
 // because apparently PIC C doesn't have abs already built into its libraries. Or if id does,
 // I don't know where to look. #include "math.h" didn't do it.
 // note: really cool way to do this with terinery operator: return (x) > 0 ? (x) : -(x)
@@ -88,7 +92,37 @@ void updatePosition() {
 // (PWM) to compensate. If called frequently enough, actual torque will catch up with desired torque.
 // It could be more efficiently replaced with an actual PID loop.
 void set_torque() { // should hand in desired torque, but currently all our variables are global . . . :(
+    force_current = pin_read(&A[0]) >> 6; // read the current sense resistor
 
+    if (myAbs(myAbs(force_desired)-force_current)>2) { // significant enough to change the motor speed
+        if (myAbs(force_desired)-force_current < 0) { // want less!!
+            last_duty -= kI;
+        }
+        else {
+            last_duty += kI; // want MORE!!
+        }
+        // deal with extreme cases
+        if (last_duty < 0) {
+            last_duty = 0;
+        }
+        if (last_duty > 65000) {
+            last_duty = 65000;
+        }
+        if ((last_duty > 3500) && (last_duty < 5500)) { // avoid dead spot
+            last_duty = 8000;
+        }
+        if ((last_duty > 5549) && (last_duty < 7900)) {
+            last_duty = 3400;
+        }
+        // now, update motor!
+        if (force_desired > 0) {
+            oc_pwm(&oc2, &D[5], &timer4, 0, 0);
+            oc_pwm(&oc1, &D[6], &timer2, 20000, last_duty);
+        } else {
+            oc_pwm(&oc1, &D[6], &timer2, 0, 0);
+            oc_pwm(&oc2, &D[5], &timer4, 20000, last_duty);
+        }
+    }
 }
 
 void Update_status(_TIMER *self){
@@ -97,6 +131,9 @@ void Update_status(_TIMER *self){
     switch(command) {
         case SPRING: 
             led_on(&led1); led_off(&led2); led_off(&led3); // for visual feedback (debugging).
+            force_desired = -(current_position-800) >> 6; // arbitrary units. will fix later
+            force_desired = force_desired * 5;
+            set_torque();
             break;
         case DAMPED:
             led_off(&led1); led_on(&led2); led_off(&led3); // for visual feedback (debugging).
@@ -107,7 +144,7 @@ void Update_status(_TIMER *self){
         case WALL:
             led_on(&led1); led_on(&led2); led_on(&led3); // for visual feedback (debugging).
             break;
-        case default:
+        default :
             //stop_motor();
             break;
     }
@@ -119,8 +156,7 @@ void printData(_TIMER *self) {
 }
 
 
-int16_t command;
-int16_t argument;
+
 void VendorRequests(void) { // deal with 
     WORD temp;
 
