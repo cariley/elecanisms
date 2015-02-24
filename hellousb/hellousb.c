@@ -82,7 +82,7 @@ int16_t main(void) {
     InitUSB();                              // initialize the USB registers and serial interface engine
     while (USB_USWSTAT!=CONFIG_STATE) {     // while the peripheral is not configured...
         ServiceUSB();
-    led_on(&led1);
+    led_on(&led2);
                            // ...service USB requests
     }
     while (1) {

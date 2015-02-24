@@ -10,14 +10,12 @@
 #include "uart.h"
 #include "usb.h"
 
-#define SET_VALS    0   // Vendor request that receives 2 unsigned integer values
+#define SET_VALS    1   // Vendor request that receives 2 unsigned integer values
+
 #define SPRING      1
 #define DAMPED      2
 #define WALL        3
 #define TEXTURE     4
-#define INTTHRESH   700
-#define FLIPTHRESH  600
-#define WALL     1200
 
 // Position tracking variables
 int16_t rawPos;         // current raw reading from MR sensor
@@ -26,39 +24,50 @@ int16_t lastLastRawPos; // last last raw reading from MR sensor
 int16_t flipNumber;     // keeps track of the number of flips over the 180deg mark
 int16_t lastRawDiff;
 int16_t lastRawOffset;
-int16_t cumulativePos;      // cumulative sensor value
-bool clockwise;
+int16_t cumulativeVal;      // cumulative sensor value
+int16_t current_position; // cumulative sensor value - initial position
+
+// more position tracking variables?? need to hunt down exactly what these ones do.
+int16_t initPos;
+uint16_t flipThresh = 600;  // threshold to determine whether or not a flip over the 180 degree mark occurred
 bool flipped = false;
 
-int16_t initPos;
-int16_t oldInitPos;
+// used for controlled torque modes: spring, damper, and perhaps texture
+int16_t force_desired; // how much force do we want applied to the joystick, given the current control law
+// (arbitrary units)
+int16_t force_current; // how much force are we currently applying (motor current reading)
+int16_t last_duty; // keeps track of the last duty cycle used for the simple integrator control loop for
+// controlling force.
+// *********************************************** IMPORTANT!! BOARD REDESIGN REQUIRED *******************
+int16_t duty_temp; // so it turns out there's a noisy section when trying to measure current at the wrong
+// drive frequency. later it would be nice to implement a hardware filter. for now, since this region is 
+// unusable (and the PID loop actually gets stuck here), temporarily just avoid this region if you're 
+// control loop wants to enter it.
+uint16_t kI = 100;
 
-int16_t error;
-int16_t lastPos;
-int16_t p, i, d;
-int16_t duty;
-int16_t integral = 0;
-uint16_t kP = 17;
-uint16_t kI = 0;
-uint16_t kD = 0;
+// because apparently PIC C doesn't have abs already built into its libraries. Or if id does,
+// I don't know where to look. #include "math.h" didn't do it.
+// note: really cool way to do this with terinery operator: return (x) > 0 ? (x) : -(x)
+int myAbs(int x) {
+    if (x > 0) {
+        return x;
+    }
+    else {
+        return -(x);
+    }
+}
 
-bool walls = false;
-
-int16_t scaledPos;
-
-void (*environment)(void);
-
-void calculatePos(_TIMER *self) {
+void updatePosition() {
     rawPos = pin_read(&A[5]) >> 6;
      
     lastRawDiff = rawPos - lastLastRawPos; 
-    lastRawOffset = abs(lastRawDiff);
+    lastRawOffset = myAbs(lastRawDiff);
     
     lastLastRawPos = lastRawPos;
     lastRawPos = rawPos;
     
     //check for flip and increment or decrement accordingly
-    if((lastRawOffset > FLIPTHRESH) && (!flipped)) { 
+    if((lastRawOffset > flipThresh) && (!flipped)) { 
         if(lastRawDiff > 0) {        
             flipNumber--;             
         } else {                     
@@ -69,119 +78,56 @@ void calculatePos(_TIMER *self) {
         flipped = false;
     }
 
-    if (lastRawDiff < 0) {
-        clockwise = false;
-    } else {
-        clockwise = true;
-    }
-
-    cumulativePos = rawPos + flipNumber*700;    //each flip changes cumulative value by 700
-
-    pidControl();
+    cumulativeVal = rawPos + flipNumber*700;    //each flip changes cumulative value by 700
+    current_position = cumulativeVal-initPos;
 }
 
-void pidControl(void) {
-    error = initPos - cumulativePos;
 
-    if (abs(error) < INTTHRESH) {
-        integral = integral + error;
-    }
-    else {
-        integral = 0;
-    }
+// this function measures the current torque (analog reading of motor current), then compares
+// this value to the desired torque, then slightly increases or decreases the motor voltage
+// (PWM) to compensate. If called frequently enough, actual torque will catch up with desired torque.
+// It could be more efficiently replaced with an actual PID loop.
+void set_torque() { // should hand in desired torque, but currently all our variables are global . . . :(
 
-    p = error*kP;                   // proportional term
-    i = integral*kI;                // integral term
-    d = (lastPos - cumulativePos)*kD; // derivative term
-    duty = p + i + d;
-
-    if (walls) {
-        if (cumulativePos != POSWALL && cumulativePos != NEGWALL) {
-            duty = 0;
-        }
-    }
-
-    printf("%d\n", duty);
-        
-    if (duty == 0) {
-        //oc_pwm(&oc1, &D[5], &timer4, 0, 0);
-        //oc_pwm(&oc1, &D[6], &timer2, 0, 0);
-    } else if (duty < 0) {
-       // oc_pwm(&oc2, &D[5], &timer4, 0, 0);
-        //oc_pwm(&oc1, &D[6], &timer2, 0, 0);
-    } else {
-        //oc_pwm(&oc1, &D[6], &timer2, 0, 0);
-        //oc_pwm(&oc2, &D[5], &timer4, 0, 0);
-    }
-
-    lastPos = cumulativePos;
 }
 
-void stopMotor(_TIMER *self) {
-    oc_pwm(&oc1, &D[5], &timer4, 0, 0);
-    oc_pwm(&oc1, &D[6], &timer2, 0, 0);
-}
-
-void texture(void) {
-    scaledPos = cumulativePos >> 10;
-
-    if (scaledPos % 2 == 0) {
-        if (clockwise) {
-            oc_pwm(&oc2, &D[5], &timer4, 0, 0);
-            oc_pwm(&oc1, &D[6], &timer2, 20000, abs(duty) * DUTYSCALE);
-        } else {
-            oc_pwm(&oc1, &D[6], &timer2, 0, 0);
-            oc_pwm(&oc2, &D[5], &timer4, 20000, abs(duty) * DUTYSCALE);
-        }
-    } else {
-        oc_pwm(&oc1, &D[5], &timer4, 0, 0);
-        oc_pwm(&oc1, &D[6], &timer2, 0, 0);
+void Update_status(_TIMER *self){
+    updatePosition(); // check the magnetoresistive sensor to make sure we always keep track of where
+    // we are
+    switch(command) {
+        case SPRING: 
+            led_on(&led1); led_off(&led2); led_off(&led3); // for visual feedback (debugging).
+            break;
+        case DAMPED:
+            led_off(&led1); led_on(&led2); led_off(&led3); // for visual feedback (debugging).
+            break;
+        case TEXTURE:
+            led_off(&led1); led_off(&led2); led_on(&led3); // for visual feedback (debugging).
+            break;
+        case WALL:
+            led_on(&led1); led_on(&led2); led_on(&led3); // for visual feedback (debugging).
+            break;
+        case default:
+            //stop_motor();
+            break;
     }
+
 }
 
-void printError(_TIMER *self) {
-    printf("%d\n",error);
+void printData(_TIMER *self) {
+    //printf("%d:%d:%d\n",force_desired,force_current,last_duty);
 }
 
-void VendorRequests(void) {
+
+int16_t command;
+int16_t argument;
+void VendorRequests(void) { // deal with 
     WORD temp;
 
     switch (USB_setup.bRequest) {
-        case SET_VALS:
-            kP = USB_setup.wValue.w;
-            BD[EP0IN].bytecount = 0;    // set EP0 IN byte count to 0 
-            BD[EP0IN].status = 0xC8;    // send packet as DATA1, set UOWN bit
-            break;
-        case SPRING:
-            environment = &pidControl;
-            walls = false;
-            kP = 17;
-            kI = 0;
-            kD = 0;
-            BD[EP0IN].bytecount = 0;    // set EP0 IN byte count to 0 
-            BD[EP0IN].status = 0xC8;    // send packet as DATA1, set UOWN bit
-            break;
-        case DAMPED:
-            environment = &pidControl;
-            walls = false;
-            kP = 10;
-            kI = 2;
-            kD = 5;
-            BD[EP0IN].bytecount = 0;    // set EP0 IN byte count to 0 
-            BD[EP0IN].status = 0xC8;    // send packet as DATA1, set UOWN bit
-            break;
-        case WALL:
-            environment = &pidControl;
-            walls = true;
-            kP = 10;
-            kI = 2;
-            kD = 5;
-            BD[EP0IN].bytecount = 0;    // set EP0 IN byte count to 0 
-            BD[EP0IN].status = 0xC8;    // send packet as DATA1, set UOWN bit
-            break;
-        case TEXTURE:
-            environment = &texture;
-            walls = false;
+        case SET_VALS: // they should all be set_vals, worth checking just to be sure.
+            command = USB_setup.wValue.w;
+            argument = USB_setup.wIndex.w;
             BD[EP0IN].bytecount = 0;    // set EP0 IN byte count to 0 
             BD[EP0IN].status = 0xC8;    // send packet as DATA1, set UOWN bit
             break;
@@ -204,16 +150,13 @@ void VendorRequestsOut(void) {
     }
 }
 
-int16_t main(void) {
-    init_clock();
-    init_timer();
-    init_ui();
-    init_pin();
-    init_oc();
-    init_uart();
-    InitUSB();
 
-    pin_analogIn(&A[5]);
+// the motorsheild needs a handful of digital pins set to specific values
+// to operate in the mode we want it to, plus A5 must be configured as an
+// input.
+void Config_Motor_Pins() {
+    pin_analogIn(&A[5]); // magnetoresistive sensor
+    pin_analogIn(&A[0]); // current sensing resistor (amplified)
 
     pin_digitalOut(&D[2]);
     pin_set(&D[2]);
@@ -232,26 +175,37 @@ int16_t main(void) {
 
     pin_digitalOut(&D[6]);
     pin_clear(&D[6]);
+}
+
+int16_t main(void) {
+    init_clock();
+    init_uart();
+    init_ui();
+    init_timer();
+    init_pin();
+    init_oc();
+
+    command = 0; // just supplying defaults
+    argument = 0;
+
+
+    Config_Motor_Pins();
 
     lastLastRawPos = pin_read(&A[5]) >> 6;
     lastRawPos = pin_read(&A[5]) >> 6;
     initPos = lastLastRawPos;
-    lastPos = initPos;
-    oldInitPos = initPos;
 
-    environment = &pidControl;
-
-    //timer_every(&timer1,.5,printForce);     //report position
-
+    InitUSB();
     while (USB_USWSTAT!=CONFIG_STATE) {     // while the peripheral is not configured...
         ServiceUSB();                       // ...service USB requests
     }
 
-    timer_every(&timer3,.0005,calculatePos); //keep track of position
+    timer_every(&timer3,.0005, Update_status); // check the state of the FSM, then check
+    // the position of the motor, then update the voltage to the motor (PWM) based on
+    // what state it is in and what it should be doing.
 
     while(1) {
         ServiceUSB(); 
-        //calculatePos();
-        //pidControl();
     }
 }
+

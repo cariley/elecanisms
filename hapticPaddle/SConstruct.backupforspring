@@ -18,13 +18,12 @@ list = Builder(action = 'xc16-objdump -S -D $SOURCE > $TARGET',
                src_suffix = 'elf')
 env.Append(BUILDERS = {'List' : list})
 
-env.Program('virtualenvironments', ['virtualenvironments.c',
+env.Program('spring', ['spring.c',
                       'descriptors.c', 
-                      '../lib/usb.c',
                       '../lib/timer.c',
                       '../lib/ui.c',
                       '../lib/pin.c',
                       '../lib/oc.c',
                       '../lib/uart.c'])
-env.Hex('virtualenvironments')
-env.List('virtualenvironments')
+env.Hex('spring')
+env.List('spring')
