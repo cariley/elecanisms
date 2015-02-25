@@ -101,7 +101,7 @@ void set_torque() { // should hand in desired torque, but currently all our vari
         else {
             last_duty += kI; // want MORE!!
         }
-        // deal with extreme cases
+        //deal with extreme cases
         if (last_duty < 0) {
             last_duty = 0;
         }
@@ -123,6 +123,7 @@ void set_torque() { // should hand in desired torque, but currently all our vari
             oc_pwm(&oc2, &D[5], &timer4, 20000, last_duty);
         }
     }
+    printf("%d:%d:%d\n",current_position,force_desired,last_duty);
 }
 
 void Update_status(_TIMER *self){
@@ -131,7 +132,7 @@ void Update_status(_TIMER *self){
     switch(command) {
         case SPRING: 
             led_on(&led1); led_off(&led2); led_off(&led3); // for visual feedback (debugging).
-            force_desired = -(current_position-800) >> 6; // arbitrary units. will fix later
+            force_desired = -(current_position) >> 6; // arbitrary units. will fix later
             force_desired = force_desired * 5;
             set_torque();
             break;
@@ -140,19 +141,43 @@ void Update_status(_TIMER *self){
             break;
         case TEXTURE:
             led_off(&led1); led_off(&led2); led_on(&led3); // for visual feedback (debugging).
+            int16_t temp_pos = current_position >> 6;
+            if (temp_pos % 1400 > 700) {
+                force_desired = -(current_position) >> 6;
+                force_desired = force_desired * 2;
+                set_torque();
+            } else {
+                stop_motor();
+            }
             break;
         case WALL:
             led_on(&led1); led_on(&led2); led_on(&led3); // for visual feedback (debugging).
+            if (current_position > POSWALL) {
+                force_desired = -(current_position) >> 6;
+                force_desired = force_desired * 10;
+                set_torque();
+            } else if (current_position < NEGWALL) {
+                force_desired = -(current_position) >> 6;
+                force_desired = force_desired * 10;
+                set_torque();
+            } else {
+                stop_motor();
+            }
             break;
         default :
-            //stop_motor();
+            stop_motor();
             break;
     }
 
 }
 
+void stop_motor(void){
+    oc_pwm(&oc2, &D[5], &timer4, 0, 0);
+    oc_pwm(&oc1, &D[6], &timer2, 0, 0);
+}
+
 void printData(_TIMER *self) {
-    //printf("%d:%d:%d\n",force_desired,force_current,last_duty);
+    printf("%d:%d:%d\n",current_position,force_desired,last_duty);
 }
 
 
@@ -231,17 +256,17 @@ int16_t main(void) {
     lastRawPos = pin_read(&A[5]) >> 6;
     initPos = lastLastRawPos;
 
-    InitUSB();
-    while (USB_USWSTAT!=CONFIG_STATE) {     // while the peripheral is not configured...
-        ServiceUSB();                       // ...service USB requests
-    }
+    // InitUSB();
+    // while (USB_USWSTAT!=CONFIG_STATE) {     // while the peripheral is not configured...
+    //     ServiceUSB();                       // ...service USB requests
+    // }
 
     timer_every(&timer3,.0005, Update_status); // check the state of the FSM, then check
     // the position of the motor, then update the voltage to the motor (PWM) based on
     // what state it is in and what it should be doing.
 
     while(1) {
-        ServiceUSB(); 
+        //ServiceUSB(); 
     }
 }
 
