@@ -178,7 +178,7 @@ void Update_status(_TIMER *self){
 }
 
 void printData(_TIMER *self) {
-    printf("%d:%d\n",current_position,force_current);
+    printf("%d:%d:%d\n",current_position,last_position - current_position,force_current);
 }
 
 
