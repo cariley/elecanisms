@@ -45,6 +45,8 @@ int16_t duty_temp; // so it turns out there's a noisy section when trying to mea
 // control loop wants to enter it.
 uint16_t kI = 100;
 
+int16_t smallest_neg;
+int16_t largest_pos;
 
 int16_t command; // which state is the FSM in?
 int16_t argument; // for states that also require a setting, what is that setting?
@@ -84,7 +86,6 @@ void updatePosition() {
 
     cumulativeVal = rawPos + flipNumber*700;    //each flip changes cumulative value by 700
     current_position = cumulativeVal-initPos;
-    printf("%d\n", current_position);
 }
 
 void stop_motor(void){
@@ -128,7 +129,7 @@ void set_torque() { // should hand in desired torque, but currently all our vari
             oc_pwm(&oc2, &D[5], &timer4, 20000, last_duty);
         }
     }
-    printf("%d:%d:%d\n",current_position,force_desired,last_duty);
+    printf("%d:%d:%d\n",current_position,force_desired,force_current);
 }
 
 void Update_status(_TIMER *self){
@@ -136,17 +137,19 @@ void Update_status(_TIMER *self){
     // we are
     switch(command) {
         case SPRING: 
-            led_on(&led1); led_off(&led2); led_off(&led3); // for visual feedback (debugging).
-            force_desired = -(current_position) >> 6; // arbitrary units. will fix later
-            force_desired = force_desired * 5;
-            set_torque();
+            if (current_position == 0) {
+                stop_motor();
+            } else {
+                force_desired = -(current_position) >> 6; // arbitrary units. will fix later
+                force_desired = force_desired * 15;
+                set_torque();
+            }     
             break;
         case DAMPED:
             led_off(&led1); led_on(&led2); led_off(&led3); // for visual feedback (debugging).
             break;
         case TEXTURE:
-            led_off(&led1); led_off(&led2); led_on(&led3); // for visual feedback (debugging).
-            if ((current_position % 800) > 400) {
+            if ((current_position % 600) > 300) {
                 force_desired = -(current_position) >> 6;
                 force_desired = force_desired * 8;
                 set_torque();
@@ -187,6 +190,10 @@ void VendorRequests(void) { // deal with
     switch (USB_setup.bRequest) {
         case SET_VALS: // they should all be set_vals, worth checking just to be sure.
             command = USB_setup.wValue.w;
+            if (command == SPRING) {
+                largest_pos = 0;
+                smallest_neg = 0;
+            }
             argument = USB_setup.wIndex.w;
             BD[EP0IN].bytecount = 0;    // set EP0 IN byte count to 0 
             BD[EP0IN].status = 0xC8;    // send packet as DATA1, set UOWN bit
