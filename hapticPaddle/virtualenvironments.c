@@ -84,8 +84,13 @@ void updatePosition() {
 
     cumulativeVal = rawPos + flipNumber*700;    //each flip changes cumulative value by 700
     current_position = cumulativeVal-initPos;
+    printf("%d\n", current_position);
 }
 
+void stop_motor(void){
+    oc_pwm(&oc2, &D[5], &timer4, 0, 0);
+    oc_pwm(&oc1, &D[6], &timer2, 0, 0);
+}
 
 // this function measures the current torque (analog reading of motor current), then compares
 // this value to the desired torque, then slightly increases or decreases the motor voltage
@@ -141,10 +146,9 @@ void Update_status(_TIMER *self){
             break;
         case TEXTURE:
             led_off(&led1); led_off(&led2); led_on(&led3); // for visual feedback (debugging).
-            int16_t temp_pos = current_position >> 6;
-            if (temp_pos % 1400 > 700) {
+            if ((current_position % 800) > 400) {
                 force_desired = -(current_position) >> 6;
-                force_desired = force_desired * 2;
+                force_desired = force_desired * 8;
                 set_torque();
             } else {
                 stop_motor();
@@ -152,13 +156,13 @@ void Update_status(_TIMER *self){
             break;
         case WALL:
             led_on(&led1); led_on(&led2); led_on(&led3); // for visual feedback (debugging).
-            if (current_position > POSWALL) {
+            if (current_position > (initPos+2000)) {
                 force_desired = -(current_position) >> 6;
-                force_desired = force_desired * 10;
+                force_desired = force_desired * 15;
                 set_torque();
-            } else if (current_position < NEGWALL) {
+            } else if (current_position < (initPos-2000)) {
                 force_desired = -(current_position) >> 6;
-                force_desired = force_desired * 10;
+                force_desired = force_desired * 15;
                 set_torque();
             } else {
                 stop_motor();
@@ -169,11 +173,6 @@ void Update_status(_TIMER *self){
             break;
     }
 
-}
-
-void stop_motor(void){
-    oc_pwm(&oc2, &D[5], &timer4, 0, 0);
-    oc_pwm(&oc1, &D[6], &timer2, 0, 0);
 }
 
 void printData(_TIMER *self) {
@@ -256,17 +255,17 @@ int16_t main(void) {
     lastRawPos = pin_read(&A[5]) >> 6;
     initPos = lastLastRawPos;
 
-    // InitUSB();
-    // while (USB_USWSTAT!=CONFIG_STATE) {     // while the peripheral is not configured...
-    //     ServiceUSB();                       // ...service USB requests
-    // }
+    InitUSB();
+    while (USB_USWSTAT!=CONFIG_STATE) {     // while the peripheral is not configured...
+        ServiceUSB();                       // ...service USB requests
+    }
 
     timer_every(&timer3,.0005, Update_status); // check the state of the FSM, then check
     // the position of the motor, then update the voltage to the motor (PWM) based on
     // what state it is in and what it should be doing.
 
     while(1) {
-        //ServiceUSB(); 
+        ServiceUSB(); 
     }
 }
 
