@@ -238,6 +238,14 @@ void Config_Motor_Pins() {
     pin_clear(&D[6]);
 }
 
+void init_variables(){
+    command = 0; // just supplying defaults
+    argument = 0;
+    lastLastRawPos = pin_read(&A[5]) >> 6;
+    lastRawPos = pin_read(&A[5]) >> 6;
+    initPos = lastLastRawPos;
+}
+
 int16_t main(void) {
     init_clock();
     init_uart();
@@ -246,14 +254,8 @@ int16_t main(void) {
     init_pin();
     init_oc();
 
-    command = 0; // just supplying defaults
-    argument = 0;
-
-    Config_Motor_Pins();
-
-    lastLastRawPos = pin_read(&A[5]) >> 6;
-    lastRawPos = pin_read(&A[5]) >> 6;
-    initPos = lastLastRawPos;
+    Config_Motor_Pins(); // set up motor driver shield
+    init_variables();
 
     InitUSB();
     while (USB_USWSTAT!=CONFIG_STATE) {     // while the peripheral is not configured...
@@ -267,7 +269,7 @@ int16_t main(void) {
     timer_every(&timer1,.01,printData);
 
     while(1) {
-        ServiceUSB(); 
+        ServiceUSB(); // check to see if we need to enter 
     }
 }
 
