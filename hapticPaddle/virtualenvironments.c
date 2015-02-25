@@ -25,7 +25,8 @@ int16_t flipNumber;     // keeps track of the number of flips over the 180deg ma
 int16_t lastRawDiff;
 int16_t lastRawOffset;
 int16_t cumulativeVal;      // cumulative sensor value
-int16_t current_position; // cumulative sensor value - initial position
+int16_t last_position;
+int16_t current_position = 0; // cumulative sensor value - initial position
 
 // more position tracking variables?? need to hunt down exactly what these ones do.
 int16_t initPos;
@@ -45,8 +46,6 @@ int16_t duty_temp; // so it turns out there's a noisy section when trying to mea
 // control loop wants to enter it.
 uint16_t kI = 100;
 
-int16_t smallest_neg;
-int16_t largest_pos;
 
 int16_t command; // which state is the FSM in?
 int16_t argument; // for states that also require a setting, what is that setting?
@@ -85,6 +84,7 @@ void updatePosition() {
     }
 
     cumulativeVal = rawPos + flipNumber*700;    //each flip changes cumulative value by 700
+    last_position = current_position;
     current_position = cumulativeVal-initPos;
 }
 
@@ -129,7 +129,6 @@ void set_torque() { // should hand in desired torque, but currently all our vari
             oc_pwm(&oc2, &D[5], &timer4, 20000, last_duty);
         }
     }
-    printf("%d:%d:%d\n",current_position,force_desired,force_current);
 }
 
 void Update_status(_TIMER *self){
@@ -137,16 +136,16 @@ void Update_status(_TIMER *self){
     // we are
     switch(command) {
         case SPRING: 
-            if (current_position == 0) {
-                stop_motor();
-            } else {
-                force_desired = -(current_position) >> 6; // arbitrary units. will fix later
-                force_desired = force_desired * 15;
-                set_torque();
-            }     
+            led_on(&led1); led_off(&led2); led_off(&led3); // for visual feedback (debugging).
+            force_desired = -(current_position) >> 6; // arbitrary units. will fix later
+            force_desired = force_desired * 15;
+            set_torque();
             break;
         case DAMPED:
-            led_off(&led1); led_on(&led2); led_off(&led3); // for visual feedback (debugging).
+            led_on(&led1); led_off(&led2); led_off(&led3); // for visual feedback (debugging).
+            force_desired = last_position - current_position;
+            force_desired = force_desired * 15;
+            set_torque();
             break;
         case TEXTURE:
             if ((current_position % 600) > 300) {
@@ -179,7 +178,7 @@ void Update_status(_TIMER *self){
 }
 
 void printData(_TIMER *self) {
-    printf("%d:%d:%d\n",current_position,force_desired,last_duty);
+    printf("%d:%d\n",current_position,force_current);
 }
 
 
@@ -190,10 +189,6 @@ void VendorRequests(void) { // deal with
     switch (USB_setup.bRequest) {
         case SET_VALS: // they should all be set_vals, worth checking just to be sure.
             command = USB_setup.wValue.w;
-            if (command == SPRING) {
-                largest_pos = 0;
-                smallest_neg = 0;
-            }
             argument = USB_setup.wIndex.w;
             BD[EP0IN].bytecount = 0;    // set EP0 IN byte count to 0 
             BD[EP0IN].status = 0xC8;    // send packet as DATA1, set UOWN bit
@@ -255,7 +250,6 @@ int16_t main(void) {
     command = 0; // just supplying defaults
     argument = 0;
 
-
     Config_Motor_Pins();
 
     lastLastRawPos = pin_read(&A[5]) >> 6;
@@ -270,6 +264,8 @@ int16_t main(void) {
     timer_every(&timer3,.0005, Update_status); // check the state of the FSM, then check
     // the position of the motor, then update the voltage to the motor (PWM) based on
     // what state it is in and what it should be doing.
+
+    timer_every(&timer1,.01,printData);
 
     while(1) {
         ServiceUSB(); 
