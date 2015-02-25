@@ -91,7 +91,7 @@ while(notDone):
         if text == 'spring':
             command = comlink.SPRING
         elif text == 'damper':
-            command == comlink.DAMPER
+            command = comlink.DAMPER
         else:
             # invalid command
             print("Command not valid, or had an unexpected coefficient argument. Try typing help to see valid commands.")
